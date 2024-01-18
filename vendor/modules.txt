@@ -12,9 +12,12 @@ github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
 # github.com/cloudbase/garm-provider-common v0.1.1
 ## explicit; go 1.20
+github.com/cloudbase/garm-provider-common/cloudconfig
+github.com/cloudbase/garm-provider-common/defaults
 github.com/cloudbase/garm-provider-common/errors
 github.com/cloudbase/garm-provider-common/execution
 github.com/cloudbase/garm-provider-common/params
+github.com/cloudbase/garm-provider-common/util
 # github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
@@ -73,9 +76,21 @@ github.com/googleapis/gax-go/v2/apierror
 github.com/googleapis/gax-go/v2/apierror/internal/proto
 github.com/googleapis/gax-go/v2/callctx
 github.com/googleapis/gax-go/v2/internal
+# github.com/gorilla/handlers v1.5.1
+## explicit; go 1.14
+github.com/gorilla/handlers
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
+# github.com/minio/sio v0.3.1
+## explicit; go 1.18
+github.com/minio/sio
+# github.com/pkg/errors v0.9.1
+## explicit
+github.com/pkg/errors
+# github.com/teris-io/shortid v0.0.0-20220617161101-71ec9f2aa569
+## explicit; go 1.18
+github.com/teris-io/shortid
 # go.opencensus.io v0.24.0
 ## explicit; go 1.13
 go.opencensus.io
@@ -122,6 +137,8 @@ go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 # golang.org/x/crypto v0.18.0
 ## explicit; go 1.18
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305
 golang.org/x/crypto/cryptobyte
@@ -285,3 +302,9 @@ google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/timestamppb
+# gopkg.in/natefinch/lumberjack.v2 v2.2.1
+## explicit; go 1.13
+gopkg.in/natefinch/lumberjack.v2
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
