@@ -18,21 +18,36 @@ package client
 import (
 	"context"
 	"fmt"
+	"os"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/cloudbase/garm-provider-gcp/config"
+	"golang.org/x/oauth2/google"
+	gcompute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 func NewGcpCli(ctx context.Context, cfg *config.Config) (*GcpCli, error) {
-	client, err := compute.NewInstancesRESTClient(ctx)
+	jsonKey, err := os.ReadFile(cfg.CredentialsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JSON key file: %w", err)
+	}
+	config, err := google.JWTConfigFromJSON(jsonKey, gcompute.CloudPlatformScope)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWT config: %w", err)
+	}
+	// Create an HTTP client using the JWT Config
+	client := config.Client(ctx)
+
+	// Now use this client to create a Compute Engine client
+	computeClient, err := compute.NewInstancesRESTClient(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("error creating compute service: %w", err)
 	}
 	gcpCli := &GcpCli{
 		cfg:    cfg,
-		client: client,
-		zone:   cfg.Zone,
+		client: computeClient,
 	}
 
 	return gcpCli, nil
@@ -42,7 +57,6 @@ type GcpCli struct {
 	cfg *config.Config
 
 	client *compute.InstancesClient
-	zone   string
 }
 
 func (g *GcpCli) DeleteInstance(ctx context.Context, instance string) error {
@@ -55,6 +69,48 @@ func (g *GcpCli) DeleteInstance(ctx context.Context, instance string) error {
 	op, err := g.client.Delete(ctx, req)
 	if err != nil {
 		return fmt.Errorf("unable to delete instance: %w", err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+
+	return nil
+}
+
+func (g *GcpCli) ListInstances(ctx context.Context, poolID string) ([]string, error) {
+	return nil, nil
+}
+
+func (g *GcpCli) StopInstance(ctx context.Context, instance string) error {
+	req := &computepb.StopInstanceRequest{
+		Instance: instance,
+		Project:  g.cfg.ProjectId,
+		Zone:     g.cfg.Zone,
+	}
+
+	op, err := g.client.Stop(ctx, req)
+	if err != nil {
+		return fmt.Errorf("unable to stop instance: %w", err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+
+	return nil
+}
+
+func (g *GcpCli) StartInstance(ctx context.Context, instance string) error {
+	req := &computepb.StartInstanceRequest{
+		Instance: instance,
+		Project:  g.cfg.ProjectId,
+		Zone:     g.cfg.Zone,
+	}
+
+	op, err := g.client.Start(ctx, req)
+	if err != nil {
+		return fmt.Errorf("unable to start instance: %w", err)
 	}
 
 	if err = op.Wait(ctx); err != nil {

@@ -21,17 +21,32 @@ import (
 
 	"github.com/cloudbase/garm-provider-common/execution"
 	"github.com/cloudbase/garm-provider-common/params"
+	"github.com/cloudbase/garm-provider-gcp/config"
 	"github.com/cloudbase/garm-provider-gcp/internal/client"
 )
 
 var _ execution.ExternalProvider = &GceProvider{}
 
-func NewGceProvider(cfgFile string, controllerID string) (*GceProvider, error) {
-	return &GceProvider{}, nil
+func NewGcpProvider(ctx context.Context, cfgFile string, controllerID string) (*GceProvider, error) {
+	conf, err := config.NewConfig(cfgFile)
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %w", err)
+	}
+
+	gcpCli, err := client.NewGcpCli(ctx, conf)
+	if err != nil {
+		return nil, fmt.Errorf("error creating GCP client: %w", err)
+	}
+
+	return &GceProvider{
+		gcpCli:       gcpCli,
+		controllerID: controllerID,
+	}, nil
 }
 
 type GceProvider struct {
-	gcpCli *client.GcpCli
+	gcpCli       *client.GcpCli
+	controllerID string
 }
 
 func (g *GceProvider) CreateInstance(ctx context.Context, bootstrapParams params.BootstrapInstance) (params.ProviderInstance, error) {
@@ -59,10 +74,10 @@ func (g *GceProvider) RemoveAllInstances(ctx context.Context) error {
 }
 
 func (g *GceProvider) Stop(ctx context.Context, instance string, force bool) error {
-	return nil
+	return g.gcpCli.StopInstance(ctx, instance)
 
 }
 
 func (g *GceProvider) Start(ctx context.Context, instance string) error {
-	return nil
+	return g.gcpCli.StartInstance(ctx, instance)
 }
