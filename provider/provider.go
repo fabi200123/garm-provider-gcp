@@ -23,6 +23,8 @@ import (
 	"github.com/cloudbase/garm-provider-common/params"
 	"github.com/cloudbase/garm-provider-gcp/config"
 	"github.com/cloudbase/garm-provider-gcp/internal/client"
+	"github.com/cloudbase/garm-provider-gcp/internal/spec"
+	"github.com/cloudbase/garm-provider-gcp/internal/util"
 )
 
 var _ execution.ExternalProvider = &GceProvider{}
@@ -39,22 +41,47 @@ func NewGcpProvider(ctx context.Context, cfgFile string, controllerID string) (*
 	}
 
 	return &GceProvider{
+		cfg:          conf,
 		gcpCli:       gcpCli,
 		controllerID: controllerID,
 	}, nil
 }
 
 type GceProvider struct {
+	cfg          *config.Config
 	gcpCli       *client.GcpCli
 	controllerID string
 }
 
 func (g *GceProvider) CreateInstance(ctx context.Context, bootstrapParams params.BootstrapInstance) (params.ProviderInstance, error) {
-	return params.ProviderInstance{}, nil
+	spec, err := spec.GetRunnerSpecFromBootstrapParams(g.cfg, bootstrapParams, g.controllerID)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("failed to get runner spec: %w", err)
+	}
+	inst, err := g.gcpCli.CreateInstance(ctx, spec)
+	if err != nil {
+		return g.GetInstance(ctx, inst)
+	}
+	instance := params.ProviderInstance{
+		ProviderID: inst,
+		Name:       spec.BootstrapParams.Name,
+		OSType:     spec.BootstrapParams.OSType,
+		OSArch:     spec.BootstrapParams.OSArch,
+		Status:     "running",
+	}
+	return instance, nil
 }
 
 func (g *GceProvider) GetInstance(ctx context.Context, instance string) (params.ProviderInstance, error) {
-	return params.ProviderInstance{}, nil
+	inst, err := g.gcpCli.GetInstance(ctx, instance)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error getting instance: %w", err)
+	}
+	instanceParams, err := util.GcpInstanceToParamsInstance(inst)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error converting instance: %w", err)
+	}
+	return instanceParams, nil
 }
 
 func (g *GceProvider) DeleteInstance(ctx context.Context, instance string) error {

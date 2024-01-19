@@ -23,6 +23,8 @@ import (
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/cloudbase/garm-provider-gcp/config"
+	"github.com/cloudbase/garm-provider-gcp/internal/spec"
+	"github.com/cloudbase/garm-provider-gcp/internal/util"
 	"golang.org/x/oauth2/google"
 	gcompute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
@@ -59,9 +61,54 @@ type GcpCli struct {
 	client *compute.InstancesClient
 }
 
+func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (string, error) {
+	if spec == nil {
+		return "", fmt.Errorf("invalid nil runner spec")
+	}
+
+	udata, err := spec.ComposeUserData()
+	if err != nil {
+		return "", fmt.Errorf("failed to compose user data: %w", err)
+	}
+
+	inst := util.GenerateInstance(g.cfg, spec, udata)
+
+	insertReq := &computepb.InsertInstanceRequest{
+		Project:          g.cfg.ProjectId,
+		Zone:             g.cfg.Zone,
+		InstanceResource: inst,
+	}
+
+	op, err := g.client.Insert(ctx, insertReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to create instance: %w", err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return "", fmt.Errorf("failed to wait for operation: %w", err)
+	}
+
+	return spec.BootstrapParams.Name, nil
+}
+
+func (g *GcpCli) GetInstance(ctx context.Context, instanceName string) (*computepb.Instance, error) {
+	req := &computepb.GetInstanceRequest{
+		Project:  g.cfg.ProjectId,
+		Zone:     g.cfg.Zone,
+		Instance: instanceName,
+	}
+
+	instance, err := g.client.Get(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance: %v", err)
+	}
+
+	return instance, nil
+}
+
 func (g *GcpCli) DeleteInstance(ctx context.Context, instance string) error {
 	req := &computepb.DeleteInstanceRequest{
-		Instance: instance,
+		Instance: util.GetInstanceName(instance),
 		Project:  g.cfg.ProjectId,
 		Zone:     g.cfg.Zone,
 	}
@@ -84,7 +131,7 @@ func (g *GcpCli) ListInstances(ctx context.Context, poolID string) ([]string, er
 
 func (g *GcpCli) StopInstance(ctx context.Context, instance string) error {
 	req := &computepb.StopInstanceRequest{
-		Instance: instance,
+		Instance: util.GetInstanceName(instance),
 		Project:  g.cfg.ProjectId,
 		Zone:     g.cfg.Zone,
 	}
@@ -103,7 +150,7 @@ func (g *GcpCli) StopInstance(ctx context.Context, instance string) error {
 
 func (g *GcpCli) StartInstance(ctx context.Context, instance string) error {
 	req := &computepb.StartInstanceRequest{
-		Instance: instance,
+		Instance: util.GetInstanceName(instance),
 		Project:  g.cfg.ProjectId,
 		Zone:     g.cfg.Zone,
 	}
