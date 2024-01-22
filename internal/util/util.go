@@ -39,6 +39,16 @@ func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *
 	boot := true
 	name := GetInstanceName(spec.BootstrapParams.Name)
 	startup := "startup-script"
+	nicType := "VIRTIO_NET"
+	netTier := "PREMIUM"
+	accessConfig := &computepb.AccessConfig{
+		// Setting NetworkTier is optional and depends on your needs
+		NetworkTier: &netTier,
+	}
+	Labels := map[string]string{
+		"garmpoolid":       spec.BootstrapParams.PoolID,
+		"garmcontrollerid": spec.ControllerID,
+	}
 	inst := &computepb.Instance{
 		Name:        &name,
 		MachineType: getMachineType(cfg.Zone, spec.BootstrapParams.Flavor),
@@ -52,7 +62,9 @@ func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *
 		},
 		NetworkInterfaces: []*computepb.NetworkInterface{
 			{
-				Network: &spec.NetworkID,
+				Network:       &spec.NetworkID,
+				NicType:       &nicType,
+				AccessConfigs: []*computepb.AccessConfig{accessConfig}, // Attach the AccessConfig here
 			},
 		},
 		Metadata: &computepb.Metadata{
@@ -63,6 +75,7 @@ func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *
 				},
 			},
 		},
+		Labels: Labels,
 	}
 
 	return inst
@@ -72,15 +85,12 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 	if gcpInstance == nil {
 		return params.ProviderInstance{}, fmt.Errorf("instance ID is nil")
 	}
-	disks := gcpInstance.GetDisks()
-	disk := disks[0]
 	details := params.ProviderInstance{
 		ProviderID: *gcpInstance.Name,
-		Name:       *gcpInstance.Name,
-		OSType:     params.OSType(disk.GuestOsFeatures[0].GetType()),
-		OSArch:     params.OSArch(*gcpInstance.CpuPlatform),
-		//*gcpInstance.ResourceStatus.String()
-		Status: params.InstanceRunning,
+		Name:       GetInstanceName(*gcpInstance.Name),
+		OSType:     params.OSType("debian"),
+		OSArch:     params.OSArch("amd64"),
+		Status:     params.InstanceRunning,
 	}
 	return details, nil
 }

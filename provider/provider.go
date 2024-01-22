@@ -60,14 +60,11 @@ func (g *GceProvider) CreateInstance(ctx context.Context, bootstrapParams params
 	}
 	inst, err := g.gcpCli.CreateInstance(ctx, spec)
 	if err != nil {
-		return g.GetInstance(ctx, inst)
+		return params.ProviderInstance{}, fmt.Errorf("error creating instance: %w", err)
 	}
-	instance := params.ProviderInstance{
-		ProviderID: inst,
-		Name:       spec.BootstrapParams.Name,
-		OSType:     spec.BootstrapParams.OSType,
-		OSArch:     spec.BootstrapParams.OSArch,
-		Status:     "running",
+	instance, err := util.GcpInstanceToParamsInstance(inst)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error converting instance: %w", err)
 	}
 	return instance, nil
 }
@@ -93,7 +90,20 @@ func (g *GceProvider) DeleteInstance(ctx context.Context, instance string) error
 }
 
 func (g *GceProvider) ListInstances(ctx context.Context, poolID string) ([]params.ProviderInstance, error) {
-	return []params.ProviderInstance{}, nil
+	gcpInstances, err := g.gcpCli.ListDescribedInstances(ctx, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list instances: %w", err)
+	}
+
+	var providerInstances []params.ProviderInstance
+	for _, val := range gcpInstances {
+		inst, err := util.GcpInstanceToParamsInstance(val)
+		if err != nil {
+			return []params.ProviderInstance{}, fmt.Errorf("failed to convert instance: %w", err)
+		}
+		providerInstances = append(providerInstances, inst)
+	}
+	return providerInstances, nil
 }
 
 func (g *GceProvider) RemoveAllInstances(ctx context.Context) error {

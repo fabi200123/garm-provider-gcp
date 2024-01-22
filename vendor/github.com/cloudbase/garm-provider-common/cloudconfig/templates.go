@@ -47,23 +47,30 @@ function call() {
 	curl --retry 5 --retry-delay 5 --retry-connrefused --fail -s -X POST -d "${PAYLOAD}" -H 'Accept: application/json' -H "Authorization: Bearer ${BEARER_TOKEN}" "${CALLBACK_URL}" || echo "failed to call home: exit code ($?)"
 }
 
+function systemInfo() {
+	if [ -f "/etc/os-release" ];then
+		. /etc/os-release
+	fi
+	OS_NAME=${NAME:-""}
+	OS_VERSION=${VERSION_ID:-""}
+	AGENT_ID=${1:-null}
+	# strip status from the callback url
+	[[ $CALLBACK_URL =~ ^(.*)/status(/)?$ ]] && CALLBACK_URL="${BASH_REMATCH[1]}" || true
+	SYSINFO_URL="${CALLBACK_URL}/system-info/"
+	PAYLOAD="{\"os_name\": \"$OS_NAME\", \"os_version\": \"$OS_VERSION\", \"agent_id\": $AGENT_ID}"
+	curl --retry 5 --retry-delay 5 --retry-connrefused --fail -s -X POST -d "${PAYLOAD}" -H 'Accept: application/json' -H "Authorization: Bearer ${BEARER_TOKEN}" "${SYSINFO_URL}" || true
+}
+
 function sendStatus() {
 	MSG="$1"
 	call "{\"status\": \"installing\", \"message\": \"$MSG\"}"
 }
 
-{{- if .UseJITConfig }}
 function success() {
 	MSG="$1"
-	call "{\"status\": \"idle\", \"message\": \"$MSG\"}"
-}
-{{- else}}
-function success() {
-	MSG="$1"
-	ID=$2
+	ID=${2:-null}
 	call "{\"status\": \"idle\", \"message\": \"$MSG\", \"agent_id\": $ID}"
 }
-{{- end}}
 
 function fail() {
 	MSG="$1"
@@ -199,9 +206,9 @@ if [ -e "/sys/fs/selinux" ];then
 	sudo chcon -R -h {{ .RunnerUsername }}:object_r:bin_t /home/runner/* || fail "failed to change selinux context"
 fi
 
+AGENT_ID=""
 {{- if .UseJITConfig }}
 sudo systemctl start $SVC_NAME || fail "failed to start service"
-success "runner successfully installed"
 {{- else}}
 sendStatus "starting service"
 sudo ./svc.sh start || fail "failed to start service"
@@ -212,8 +219,9 @@ if [ $? -ne 0 ];then
 	fail "failed to get agent ID"
 fi
 set -e
-success "runner successfully installed" $AGENT_ID
 {{- end}}
+systemInfo $AGENT_ID
+success "runner successfully installed" $AGENT_ID
 `
 
 var WindowsSetupScriptTemplate = `#ps1_sysnative
@@ -347,7 +355,7 @@ function Update-GarmStatus() {
 		}
 
 		if ($AgentID -ne 0) {
-			$body["AgentID"] = $AgentID
+			$body["agent_id"] = $AgentID
 		}
 		Invoke-APICall -Payload $body -CallbackURL $CallbackURL | Out-Null
 	}

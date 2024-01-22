@@ -61,14 +61,14 @@ type GcpCli struct {
 	client *compute.InstancesClient
 }
 
-func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (string, error) {
+func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (*computepb.Instance, error) {
 	if spec == nil {
-		return "", fmt.Errorf("invalid nil runner spec")
+		return nil, fmt.Errorf("invalid nil runner spec")
 	}
 
 	udata, err := spec.ComposeUserData()
 	if err != nil {
-		return "", fmt.Errorf("failed to compose user data: %w", err)
+		return nil, fmt.Errorf("failed to compose user data: %w", err)
 	}
 
 	inst := util.GenerateInstance(g.cfg, spec, udata)
@@ -79,16 +79,12 @@ func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (str
 		InstanceResource: inst,
 	}
 
-	op, err := g.client.Insert(ctx, insertReq)
+	_, err = g.client.Insert(ctx, insertReq)
 	if err != nil {
-		return "", fmt.Errorf("failed to create instance: %w", err)
+		return nil, fmt.Errorf("failed to create instance %s: %w", insertReq, err)
 	}
 
-	if err = op.Wait(ctx); err != nil {
-		return "", fmt.Errorf("failed to wait for operation: %w", err)
-	}
-
-	return spec.BootstrapParams.Name, nil
+	return inst, nil
 }
 
 func (g *GcpCli) GetInstance(ctx context.Context, instanceName string) (*computepb.Instance, error) {
@@ -106,6 +102,27 @@ func (g *GcpCli) GetInstance(ctx context.Context, instanceName string) (*compute
 	return instance, nil
 }
 
+func (g *GcpCli) ListDescribedInstances(ctx context.Context, poolID string) ([]*computepb.Instance, error) {
+	label := fmt.Sprintf("labels.garmpoolid=%s", poolID)
+	req := &computepb.ListInstancesRequest{
+		Project: g.cfg.ProjectId,
+		Zone:    g.cfg.Zone,
+		Filter:  &label,
+	}
+
+	it := g.client.List(ctx, req)
+	var instances []*computepb.Instance
+	for {
+		instance, _ := it.Next()
+		if instance == nil {
+			break
+		}
+		instances = append(instances, instance)
+	}
+
+	return instances, nil
+}
+
 func (g *GcpCli) DeleteInstance(ctx context.Context, instance string) error {
 	req := &computepb.DeleteInstanceRequest{
 		Instance: util.GetInstanceName(instance),
@@ -119,14 +136,10 @@ func (g *GcpCli) DeleteInstance(ctx context.Context, instance string) error {
 	}
 
 	if err = op.Wait(ctx); err != nil {
-		return fmt.Errorf("unable to wait for the operation: %w", err)
+		return fmt.Errorf("unable to wait for the delete operation: %w", err)
 	}
 
 	return nil
-}
-
-func (g *GcpCli) ListInstances(ctx context.Context, poolID string) ([]string, error) {
-	return nil, nil
 }
 
 func (g *GcpCli) StopInstance(ctx context.Context, instance string) error {

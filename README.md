@@ -40,9 +40,9 @@ garm-cli pool create \
     --os-arch amd64 \
     --enabled=true \
     --flavor e2-medium \
-    --image  debian\
+    --image  projects/debian-cloud/global/images/family/debian-10\
     --min-idle-runners 0 \
-    --repo e0207029-e3bf-493a-9caa-64e80610c5ee \
+    --repo eb3f78b6-d667-4717-97c4-7aa1f3852138 \
     --tags gcp,linux \
     --provider-name gcp
 ```
