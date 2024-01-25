@@ -62,9 +62,12 @@ func (g *GceProvider) CreateInstance(ctx context.Context, bootstrapParams params
 	if err != nil {
 		return params.ProviderInstance{}, fmt.Errorf("error creating instance: %w", err)
 	}
-	instance, err := util.GcpInstanceToParamsInstance(inst)
-	if err != nil {
-		return params.ProviderInstance{}, fmt.Errorf("error converting instance: %w", err)
+	instance := params.ProviderInstance{
+		ProviderID: *inst.Name,
+		Name:       spec.BootstrapParams.Name,
+		OSType:     spec.BootstrapParams.OSType,
+		OSArch:     spec.BootstrapParams.OSArch,
+		Status:     "running",
 	}
 	return instance, nil
 }

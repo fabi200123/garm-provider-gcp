@@ -23,11 +23,17 @@ import (
 	"github.com/cloudbase/garm-provider-common/params"
 	"github.com/cloudbase/garm-provider-gcp/config"
 	"github.com/cloudbase/garm-provider-gcp/internal/spec"
+	"google.golang.org/protobuf/proto"
 )
 
-func getMachineType(zone, flavor string) *string {
+const (
+	startup = "user-data"
+	netTier = "PREMIUM"
+)
+
+func getMachineType(zone, flavor string) string {
 	machine := fmt.Sprintf("zones/%s/machineTypes/%s", zone, flavor)
-	return &machine
+	return machine
 }
 
 func GetInstanceName(name string) string {
@@ -36,46 +42,57 @@ func GetInstanceName(name string) string {
 }
 
 func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *computepb.Instance {
-	boot := true
 	name := GetInstanceName(spec.BootstrapParams.Name)
-	startup := "startup-script"
 	nicType := "VIRTIO_NET"
-	netTier := "PREMIUM"
 	accessConfig := &computepb.AccessConfig{
-		// Setting NetworkTier is optional and depends on your needs
-		NetworkTier: &netTier,
+		NetworkTier: proto.String(netTier),
 	}
 	Labels := map[string]string{
 		"garmpoolid":       spec.BootstrapParams.PoolID,
 		"garmcontrollerid": spec.ControllerID,
 	}
 	inst := &computepb.Instance{
-		Name:        &name,
-		MachineType: getMachineType(cfg.Zone, spec.BootstrapParams.Flavor),
+		Name:        proto.String(name),
+		MachineType: proto.String(getMachineType(cfg.Zone, spec.BootstrapParams.Flavor)),
 		Disks: []*computepb.AttachedDisk{
 			{
-				Boot: &boot,
+				Boot: proto.Bool(true),
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					SourceImage: &spec.BootstrapParams.Image,
+					DiskSizeGb:  proto.Int64(spec.DiskSize),
+					SourceImage: proto.String(spec.BootstrapParams.Image),
 				},
+				AutoDelete: proto.Bool(true),
 			},
 		},
 		NetworkInterfaces: []*computepb.NetworkInterface{
 			{
-				Network:       &spec.NetworkID,
-				NicType:       &nicType,
-				AccessConfigs: []*computepb.AccessConfig{accessConfig}, // Attach the AccessConfig here
+				Network:       proto.String(cfg.NetworkID),
+				NicType:       proto.String(nicType),
+				AccessConfigs: []*computepb.AccessConfig{accessConfig},
+				Subnetwork:    proto.String("projects/garm-testing/regions/europe-west1/subnetworks/garm"),
 			},
 		},
 		Metadata: &computepb.Metadata{
 			Items: []*computepb.Items{
 				{
-					Key:   &startup,
-					Value: &udata,
+					Key:   proto.String(startup),
+					Value: proto.String(udata),
 				},
 			},
 		},
 		Labels: Labels,
+		ServiceAccounts: []*computepb.ServiceAccount{
+			{
+				Email: proto.String("626797023368-compute@developer.gserviceaccount.com"),
+				Scopes: []string{
+					"https://www.googleapis.com/auth/cloud-platform",
+					"https://www.googleapis.com/auth/compute",
+					"https://www.googleapis.com/auth/devstorage.read_only",
+					"https://www.googleapis.com/auth/logging.write",
+					"https://www.googleapis.com/auth/monitoring.write",
+				},
+			},
+		},
 	}
 
 	return inst
@@ -86,7 +103,7 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 		return params.ProviderInstance{}, fmt.Errorf("instance ID is nil")
 	}
 	details := params.ProviderInstance{
-		ProviderID: *gcpInstance.Name,
+		ProviderID: GetInstanceName(*gcpInstance.Name),
 		Name:       GetInstanceName(*gcpInstance.Name),
 		OSType:     params.OSType("debian"),
 		OSArch:     params.OSArch("amd64"),

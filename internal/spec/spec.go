@@ -16,7 +16,6 @@
 package spec
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -24,6 +23,10 @@ import (
 	"github.com/cloudbase/garm-provider-common/params"
 	"github.com/cloudbase/garm-provider-common/util"
 	"github.com/cloudbase/garm-provider-gcp/config"
+)
+
+const (
+	defaultDiskSizeGB int64 = 100
 )
 
 func newExtraSpecsFromBootstrapData(data params.BootstrapInstance) (*extraSpecs, error) {
@@ -39,6 +42,7 @@ func newExtraSpecsFromBootstrapData(data params.BootstrapInstance) (*extraSpecs,
 }
 
 type extraSpecs struct {
+	DiskSize  int64   `json:"disksize,omitempty"`
 	NetworkID *string `json:"network_id,omitempty"`
 }
 
@@ -59,6 +63,7 @@ func GetRunnerSpecFromBootstrapParams(cfg *config.Config, data params.BootstrapI
 		BootstrapParams: data,
 		NetworkID:       cfg.NetworkID,
 		ControllerID:    controllerID,
+		DiskSize:        defaultDiskSizeGB,
 	}
 
 	spec.MergeExtraSpecs(extraSpecs)
@@ -72,11 +77,15 @@ type RunnerSpec struct {
 	BootstrapParams params.BootstrapInstance
 	NetworkID       string
 	ControllerID    string
+	DiskSize        int64
 }
 
 func (r *RunnerSpec) MergeExtraSpecs(extraSpecs *extraSpecs) {
 	if extraSpecs.NetworkID != nil && *extraSpecs.NetworkID != "" {
 		r.NetworkID = *extraSpecs.NetworkID
+	}
+	if extraSpecs.DiskSize > 0 {
+		r.DiskSize = extraSpecs.DiskSize
 	}
 }
 
@@ -101,8 +110,7 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate userdata: %w", err)
 		}
-		asBase64 := base64.StdEncoding.EncodeToString([]byte(udata))
-		return asBase64, nil
+		return udata, nil
 	}
 	return "", fmt.Errorf("unsupported OS type for cloud config: %s", r.BootstrapParams.OSType)
 }

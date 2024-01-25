@@ -79,9 +79,13 @@ func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (*co
 		InstanceResource: inst,
 	}
 
-	_, err = g.client.Insert(ctx, insertReq)
+	op, err := g.client.Insert(ctx, insertReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance %s: %w", insertReq, err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("failed to wait for operation: %w", err)
 	}
 
 	return inst, nil
