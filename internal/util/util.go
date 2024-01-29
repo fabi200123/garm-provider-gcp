@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	startup = "user-data"
-	netTier = "PREMIUM"
+	startup          string = "startup-script"
+	netTier          string = "PREMIUM"
+	accessConfigType string = "ONE_TO_ONE_NAT"
 )
 
 func getMachineType(zone, flavor string) string {
@@ -43,14 +44,6 @@ func GetInstanceName(name string) string {
 
 func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *computepb.Instance {
 	name := GetInstanceName(spec.BootstrapParams.Name)
-	nicType := "VIRTIO_NET"
-	accessConfig := &computepb.AccessConfig{
-		NetworkTier: proto.String(netTier),
-	}
-	Labels := map[string]string{
-		"garmpoolid":       spec.BootstrapParams.PoolID,
-		"garmcontrollerid": spec.ControllerID,
-	}
 	inst := &computepb.Instance{
 		Name:        proto.String(name),
 		MachineType: proto.String(getMachineType(cfg.Zone, spec.BootstrapParams.Flavor)),
@@ -66,10 +59,16 @@ func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *
 		},
 		NetworkInterfaces: []*computepb.NetworkInterface{
 			{
-				Network:       proto.String(cfg.NetworkID),
-				NicType:       proto.String(nicType),
-				AccessConfigs: []*computepb.AccessConfig{accessConfig},
-				Subnetwork:    proto.String("projects/garm-testing/regions/europe-west1/subnetworks/garm"),
+				Network: proto.String(cfg.NetworkID),
+				NicType: proto.String(spec.NicType),
+				AccessConfigs: []*computepb.AccessConfig{
+					{
+						// The type of configuration. In accessConfigs (IPv4), the default and only option is ONE_TO_ONE_NAT.
+						Type:        proto.String(accessConfigType),
+						NetworkTier: proto.String(netTier),
+					},
+				},
+				Subnetwork: &spec.SubnetworkID,
 			},
 		},
 		Metadata: &computepb.Metadata{
@@ -80,18 +79,9 @@ func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *
 				},
 			},
 		},
-		Labels: Labels,
-		ServiceAccounts: []*computepb.ServiceAccount{
-			{
-				Email: proto.String("626797023368-compute@developer.gserviceaccount.com"),
-				Scopes: []string{
-					"https://www.googleapis.com/auth/cloud-platform",
-					"https://www.googleapis.com/auth/compute",
-					"https://www.googleapis.com/auth/devstorage.read_only",
-					"https://www.googleapis.com/auth/logging.write",
-					"https://www.googleapis.com/auth/monitoring.write",
-				},
-			},
+		Labels: map[string]string{
+			"garmpoolid":       spec.BootstrapParams.PoolID,
+			"garmcontrollerid": spec.ControllerID,
 		},
 	}
 
@@ -105,9 +95,22 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 	details := params.ProviderInstance{
 		ProviderID: GetInstanceName(*gcpInstance.Name),
 		Name:       GetInstanceName(*gcpInstance.Name),
-		OSType:     params.OSType("debian"),
+		OSType:     params.OSType("linux"),
 		OSArch:     params.OSArch("amd64"),
-		Status:     params.InstanceRunning,
 	}
+
+	switch gcpInstance.GetStatus() {
+	case "RUNNING":
+		details.Status = params.InstanceRunning
+	case "STOPPING", "TERMINATED", "SUSPENDED":
+		details.Status = params.InstanceStopped
+	case "PROVISIONING":
+		details.Status = params.InstancePendingCreate
+	case "STAGING":
+		details.Status = params.InstanceCreating
+	default:
+		details.Status = params.InstanceStatusUnknown
+	}
+
 	return details, nil
 }

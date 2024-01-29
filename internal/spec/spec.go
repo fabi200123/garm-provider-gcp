@@ -18,15 +18,18 @@ package spec
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/cloudbase/garm-provider-common/cloudconfig"
+	"github.com/cloudbase/garm-provider-common/defaults"
 	"github.com/cloudbase/garm-provider-common/params"
 	"github.com/cloudbase/garm-provider-common/util"
 	"github.com/cloudbase/garm-provider-gcp/config"
 )
 
 const (
-	defaultDiskSizeGB int64 = 100
+	defaultDiskSizeGB int64  = 100
+	defaultNicType    string = "VIRTIO_NET"
 )
 
 func newExtraSpecsFromBootstrapData(data params.BootstrapInstance) (*extraSpecs, error) {
@@ -42,8 +45,10 @@ func newExtraSpecsFromBootstrapData(data params.BootstrapInstance) (*extraSpecs,
 }
 
 type extraSpecs struct {
-	DiskSize  int64   `json:"disksize,omitempty"`
-	NetworkID *string `json:"network_id,omitempty"`
+	DiskSize     int64  `json:"disksize,omitempty"`
+	NetworkID    string `json:"network_id,omitempty"`
+	SubnetworkID string `json:"subnetwork_id,omitempty"`
+	NicType      string `json:"nic_type,omitempty"`
 }
 
 func GetRunnerSpecFromBootstrapParams(cfg *config.Config, data params.BootstrapInstance, controllerID string) (*RunnerSpec, error) {
@@ -62,7 +67,9 @@ func GetRunnerSpecFromBootstrapParams(cfg *config.Config, data params.BootstrapI
 		Tools:           tools,
 		BootstrapParams: data,
 		NetworkID:       cfg.NetworkID,
+		SubnetworkID:    cfg.SubnetworkID,
 		ControllerID:    controllerID,
+		NicType:         defaultNicType,
 		DiskSize:        defaultDiskSizeGB,
 	}
 
@@ -76,16 +83,24 @@ type RunnerSpec struct {
 	Tools           params.RunnerApplicationDownload
 	BootstrapParams params.BootstrapInstance
 	NetworkID       string
+	SubnetworkID    string
 	ControllerID    string
+	NicType         string
 	DiskSize        int64
 }
 
 func (r *RunnerSpec) MergeExtraSpecs(extraSpecs *extraSpecs) {
-	if extraSpecs.NetworkID != nil && *extraSpecs.NetworkID != "" {
-		r.NetworkID = *extraSpecs.NetworkID
+	if extraSpecs.NetworkID != "" {
+		r.NetworkID = extraSpecs.NetworkID
+	}
+	if extraSpecs.SubnetworkID != "" {
+		r.SubnetworkID = extraSpecs.SubnetworkID
 	}
 	if extraSpecs.DiskSize > 0 {
 		r.DiskSize = extraSpecs.DiskSize
+	}
+	if extraSpecs.NicType != "" {
+		r.NicType = extraSpecs.NicType
 	}
 }
 
@@ -96,8 +111,14 @@ func (r *RunnerSpec) Validate() error {
 	if r.NetworkID == "" {
 		return fmt.Errorf("missing network id")
 	}
+	if r.SubnetworkID == "" {
+		return fmt.Errorf("missing subnetwork id")
+	}
 	if r.ControllerID == "" {
 		return fmt.Errorf("missing controller id")
+	}
+	if r.NicType == "" {
+		return fmt.Errorf("missing nic type")
 	}
 
 	return nil
@@ -105,12 +126,39 @@ func (r *RunnerSpec) Validate() error {
 
 func (r RunnerSpec) ComposeUserData() (string, error) {
 	switch r.BootstrapParams.OSType {
-	case params.Linux, params.Windows:
-		udata, err := cloudconfig.GetCloudConfig(r.BootstrapParams, r.Tools, r.BootstrapParams.Name)
+	case params.Linux:
+		udata, err := cloudconfig.GetRunnerInstallScript(r.BootstrapParams, r.Tools, r.BootstrapParams.Name)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate userdata: %w", err)
 		}
-		return udata, nil
+		// Split the script into lines
+		lines := strings.Split(string(udata), "\n")
+
+		// Insert the new command after the shebang (#!) line
+		if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
+			// Commands to be added after the shebang line
+			additionalCommands := []string{
+				// Create user 'runner' if it doesn't exist; '|| true' to ignore if user already exists
+				"sudo useradd -m " + defaults.DefaultUser + " || true",
+				// Create the runner home directory if it doesn't exist
+				"sudo mkdir -p /home/" + defaults.DefaultUser,
+			}
+
+			// Insert the additional commands after the shebang line
+			lines = append(lines[:1], append(additionalCommands, lines[1:]...)...)
+		}
+
+		// Join the lines back into a single string
+		modifiedUdata := strings.Join(lines, "\n")
+
+		return modifiedUdata, nil
+	case params.Windows:
+		udata, err := cloudconfig.GetRunnerInstallScript(r.BootstrapParams, r.Tools, r.BootstrapParams.Name)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate userdata: %w", err)
+		}
+
+		return string(udata), nil
 	}
 	return "", fmt.Errorf("unsupported OS type for cloud config: %s", r.BootstrapParams.OSType)
 }
