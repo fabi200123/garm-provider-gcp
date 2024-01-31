@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultDiskSizeGB int64  = 100
+	defaultDiskSizeGB int64  = 127
 	defaultNicType    string = "VIRTIO_NET"
 )
 
@@ -131,12 +131,9 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate userdata: %w", err)
 		}
-		// Split the script into lines
 		lines := strings.Split(string(udata), "\n")
 
-		// Insert the new command after the shebang (#!) line
 		if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
-			// Commands to be added after the shebang line
 			additionalCommands := []string{
 				// Create user 'runner' if it doesn't exist; '|| true' to ignore if user already exists
 				"sudo useradd -m " + defaults.DefaultUser + " || true",
@@ -144,11 +141,8 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 				"sudo mkdir -p /home/" + defaults.DefaultUser,
 			}
 
-			// Insert the additional commands after the shebang line
 			lines = append(lines[:1], append(additionalCommands, lines[1:]...)...)
 		}
-
-		// Join the lines back into a single string
 		modifiedUdata := strings.Join(lines, "\n")
 
 		return modifiedUdata, nil

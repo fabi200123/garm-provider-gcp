@@ -21,18 +21,9 @@ import (
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/cloudbase/garm-provider-common/params"
-	"github.com/cloudbase/garm-provider-gcp/config"
-	"github.com/cloudbase/garm-provider-gcp/internal/spec"
-	"google.golang.org/protobuf/proto"
 )
 
-const (
-	startup          string = "startup-script"
-	netTier          string = "PREMIUM"
-	accessConfigType string = "ONE_TO_ONE_NAT"
-)
-
-func getMachineType(zone, flavor string) string {
+func GetMachineType(zone, flavor string) string {
 	machine := fmt.Sprintf("zones/%s/machineTypes/%s", zone, flavor)
 	return machine
 }
@@ -40,52 +31,6 @@ func getMachineType(zone, flavor string) string {
 func GetInstanceName(name string) string {
 	lowerName := strings.ToLower(name)
 	return lowerName
-}
-
-func GenerateInstance(cfg *config.Config, spec *spec.RunnerSpec, udata string) *computepb.Instance {
-	name := GetInstanceName(spec.BootstrapParams.Name)
-	inst := &computepb.Instance{
-		Name:        proto.String(name),
-		MachineType: proto.String(getMachineType(cfg.Zone, spec.BootstrapParams.Flavor)),
-		Disks: []*computepb.AttachedDisk{
-			{
-				Boot: proto.Bool(true),
-				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					DiskSizeGb:  proto.Int64(spec.DiskSize),
-					SourceImage: proto.String(spec.BootstrapParams.Image),
-				},
-				AutoDelete: proto.Bool(true),
-			},
-		},
-		NetworkInterfaces: []*computepb.NetworkInterface{
-			{
-				Network: proto.String(cfg.NetworkID),
-				NicType: proto.String(spec.NicType),
-				AccessConfigs: []*computepb.AccessConfig{
-					{
-						// The type of configuration. In accessConfigs (IPv4), the default and only option is ONE_TO_ONE_NAT.
-						Type:        proto.String(accessConfigType),
-						NetworkTier: proto.String(netTier),
-					},
-				},
-				Subnetwork: &spec.SubnetworkID,
-			},
-		},
-		Metadata: &computepb.Metadata{
-			Items: []*computepb.Items{
-				{
-					Key:   proto.String(startup),
-					Value: proto.String(udata),
-				},
-			},
-		},
-		Labels: map[string]string{
-			"garmpoolid":       spec.BootstrapParams.PoolID,
-			"garmcontrollerid": spec.ControllerID,
-		},
-	}
-
-	return inst
 }
 
 func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.ProviderInstance, error) {
@@ -96,7 +41,7 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 		ProviderID: GetInstanceName(*gcpInstance.Name),
 		Name:       GetInstanceName(*gcpInstance.Name),
 		OSType:     params.OSType("linux"),
-		OSArch:     params.OSArch("amd64"),
+		OSArch:     params.OSArch(*gcpInstance.CpuPlatform),
 	}
 
 	switch gcpInstance.GetStatus() {

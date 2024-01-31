@@ -28,6 +28,15 @@ import (
 	"golang.org/x/oauth2/google"
 	gcompute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	startup          string = "startup-script"
+	netTier          string = "PREMIUM"
+	accessConfigType string = "ONE_TO_ONE_NAT"
+	garmPoolID       string = "garmpoolid"
+	garmControllerID string = "garmcontrollerid"
 )
 
 func NewGcpCli(ctx context.Context, cfg *config.Config) (*GcpCli, error) {
@@ -71,7 +80,47 @@ func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (*co
 		return nil, fmt.Errorf("failed to compose user data: %w", err)
 	}
 
-	inst := util.GenerateInstance(g.cfg, spec, udata)
+	name := util.GetInstanceName(spec.BootstrapParams.Name)
+	inst := &computepb.Instance{
+		Name:        proto.String(name),
+		MachineType: proto.String(util.GetMachineType(g.cfg.Zone, spec.BootstrapParams.Flavor)),
+		Disks: []*computepb.AttachedDisk{
+			{
+				Boot: proto.Bool(true),
+				InitializeParams: &computepb.AttachedDiskInitializeParams{
+					DiskSizeGb:  proto.Int64(spec.DiskSize),
+					SourceImage: proto.String(spec.BootstrapParams.Image),
+				},
+				AutoDelete: proto.Bool(true),
+			},
+		},
+		NetworkInterfaces: []*computepb.NetworkInterface{
+			{
+				Network: proto.String(g.cfg.NetworkID),
+				NicType: proto.String(spec.NicType),
+				AccessConfigs: []*computepb.AccessConfig{
+					{
+						// The type of configuration. In accessConfigs (IPv4), the default and only option is ONE_TO_ONE_NAT.
+						Type:        proto.String(accessConfigType),
+						NetworkTier: proto.String(netTier),
+					},
+				},
+				Subnetwork: &spec.SubnetworkID,
+			},
+		},
+		Metadata: &computepb.Metadata{
+			Items: []*computepb.Items{
+				{
+					Key:   proto.String(startup),
+					Value: proto.String(udata),
+				},
+			},
+		},
+		Labels: map[string]string{
+			garmPoolID:       spec.BootstrapParams.PoolID,
+			garmControllerID: spec.ControllerID,
+		},
+	}
 
 	insertReq := &computepb.InsertInstanceRequest{
 		Project:          g.cfg.ProjectId,
