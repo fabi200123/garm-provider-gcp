@@ -39,6 +39,7 @@ type Config struct {
 	Zone            string `toml:"zone"`
 	CredentialsFile string `toml:"credentials_file"`
 	NetworkID       string `toml:"network_id"`
+	SubnetworkID    string `toml:"subnetwork_id"`
 }
 
 func (c *Config) Validate() error {
@@ -50,6 +51,9 @@ func (c *Config) Validate() error {
 	}
 	if c.NetworkID == "" {
 		return fmt.Errorf("missing network_id")
+	}
+	if c.SubnetworkID == "" {
+		return fmt.Errorf("missing subnetwork_id")
 	}
 	if c.CredentialsFile == "" {
 		return fmt.Errorf("missing credentials_file")

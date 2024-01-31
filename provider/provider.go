@@ -21,25 +21,67 @@ import (
 
 	"github.com/cloudbase/garm-provider-common/execution"
 	"github.com/cloudbase/garm-provider-common/params"
+	"github.com/cloudbase/garm-provider-gcp/config"
 	"github.com/cloudbase/garm-provider-gcp/internal/client"
+	"github.com/cloudbase/garm-provider-gcp/internal/spec"
+	"github.com/cloudbase/garm-provider-gcp/internal/util"
 )
 
 var _ execution.ExternalProvider = &GceProvider{}
 
-func NewGceProvider(cfgFile string, controllerID string) (*GceProvider, error) {
-	return &GceProvider{}, nil
+func NewGcpProvider(ctx context.Context, cfgFile string, controllerID string) (*GceProvider, error) {
+	conf, err := config.NewConfig(cfgFile)
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %w", err)
+	}
+
+	gcpCli, err := client.NewGcpCli(ctx, conf)
+	if err != nil {
+		return nil, fmt.Errorf("error creating GCP client: %w", err)
+	}
+
+	return &GceProvider{
+		cfg:          conf,
+		gcpCli:       gcpCli,
+		controllerID: controllerID,
+	}, nil
 }
 
 type GceProvider struct {
-	gcpCli *client.GcpCli
+	cfg          *config.Config
+	gcpCli       *client.GcpCli
+	controllerID string
 }
 
 func (g *GceProvider) CreateInstance(ctx context.Context, bootstrapParams params.BootstrapInstance) (params.ProviderInstance, error) {
-	return params.ProviderInstance{}, nil
+	spec, err := spec.GetRunnerSpecFromBootstrapParams(g.cfg, bootstrapParams, g.controllerID)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("failed to get runner spec: %w", err)
+	}
+	inst, err := g.gcpCli.CreateInstance(ctx, spec)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error creating instance: %w", err)
+	}
+	instance := params.ProviderInstance{
+		ProviderID: *inst.Name,
+		Name:       spec.BootstrapParams.Name,
+		OSType:     spec.BootstrapParams.OSType,
+		OSArch:     spec.BootstrapParams.OSArch,
+		Status:     "running",
+	}
+	return instance, nil
 }
 
 func (g *GceProvider) GetInstance(ctx context.Context, instance string) (params.ProviderInstance, error) {
-	return params.ProviderInstance{}, nil
+	inst, err := g.gcpCli.GetInstance(ctx, instance)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error getting instance: %w", err)
+	}
+	instanceParams, err := util.GcpInstanceToParamsInstance(inst)
+	if err != nil {
+		return params.ProviderInstance{}, fmt.Errorf("error converting instance: %w", err)
+	}
+	return instanceParams, nil
 }
 
 func (g *GceProvider) DeleteInstance(ctx context.Context, instance string) error {
@@ -51,7 +93,20 @@ func (g *GceProvider) DeleteInstance(ctx context.Context, instance string) error
 }
 
 func (g *GceProvider) ListInstances(ctx context.Context, poolID string) ([]params.ProviderInstance, error) {
-	return []params.ProviderInstance{}, nil
+	gcpInstances, err := g.gcpCli.ListDescribedInstances(ctx, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list instances: %w", err)
+	}
+
+	var providerInstances []params.ProviderInstance
+	for _, val := range gcpInstances {
+		inst, err := util.GcpInstanceToParamsInstance(val)
+		if err != nil {
+			return []params.ProviderInstance{}, fmt.Errorf("failed to convert instance: %w", err)
+		}
+		providerInstances = append(providerInstances, inst)
+	}
+	return providerInstances, nil
 }
 
 func (g *GceProvider) RemoveAllInstances(ctx context.Context) error {
@@ -59,10 +114,10 @@ func (g *GceProvider) RemoveAllInstances(ctx context.Context) error {
 }
 
 func (g *GceProvider) Stop(ctx context.Context, instance string, force bool) error {
-	return nil
+	return g.gcpCli.StopInstance(ctx, instance)
 
 }
 
 func (g *GceProvider) Start(ctx context.Context, instance string) error {
-	return nil
+	return g.gcpCli.StartInstance(ctx, instance)
 }

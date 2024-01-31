@@ -18,7 +18,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,12 +37,14 @@ func main() {
 
 	executionEnv, err := execution.GetEnvironment()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Error getting environment: %q", err)
+		os.Exit(1)
 	}
 
-	prov, err := provider.NewGceProvider(executionEnv.ProviderConfigFile, executionEnv.ControllerID)
+	prov, err := provider.NewGcpProvider(ctx, executionEnv.ProviderConfigFile, executionEnv.ControllerID)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Error creating provider: %q", err)
+		os.Exit(1)
 	}
 
 	result, err := execution.Run(ctx, prov, executionEnv)
