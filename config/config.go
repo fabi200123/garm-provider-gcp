@@ -21,7 +21,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// NewConfig returns a new Config
 func NewConfig(cfgFile string) (*Config, error) {
 	var config Config
 	if _, err := toml.DecodeFile(cfgFile, &config); err != nil {

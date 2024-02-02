@@ -131,8 +131,8 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate userdata: %w", err)
 		}
-		lines := strings.Split(string(udata), "\n")
 
+		lines := strings.Split(string(udata), "\n")
 		if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
 			additionalCommands := []string{
 				// Create user 'runner' if it doesn't exist; '|| true' to ignore if user already exists
@@ -140,11 +140,9 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 				// Create the runner home directory if it doesn't exist
 				"sudo mkdir -p /home/" + defaults.DefaultUser,
 			}
-
 			lines = append(lines[:1], append(additionalCommands, lines[1:]...)...)
 		}
 		modifiedUdata := strings.Join(lines, "\n")
-
 		return modifiedUdata, nil
 	case params.Windows:
 		udata, err := cloudconfig.GetRunnerInstallScript(r.BootstrapParams, r.Tools, r.BootstrapParams.Name)

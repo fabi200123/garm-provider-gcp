@@ -40,8 +40,8 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 	details := params.ProviderInstance{
 		ProviderID: GetInstanceName(*gcpInstance.Name),
 		Name:       GetInstanceName(*gcpInstance.Name),
-		OSType:     params.OSType("linux"),
-		OSArch:     params.OSArch(*gcpInstance.CpuPlatform),
+		OSType:     params.OSType(gcpInstance.Labels["ostype"]),
+		OSArch:     params.OSArch(*gcpInstance.Disks[0].Architecture),
 	}
 
 	switch gcpInstance.GetStatus() {

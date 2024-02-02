@@ -37,6 +37,7 @@ const (
 	accessConfigType     string = "ONE_TO_ONE_NAT"
 	garmPoolID           string = "garmpoolid"
 	garmControllerID     string = "garmcontrollerid"
+	osType               string = "ostype"
 )
 
 func NewGcpCli(ctx context.Context, cfg *config.Config) (*GcpCli, error) {
@@ -119,6 +120,7 @@ func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (*co
 		Labels: map[string]string{
 			garmPoolID:       spec.BootstrapParams.PoolID,
 			garmControllerID: spec.ControllerID,
+			osType:           string(spec.BootstrapParams.OSType),
 		},
 	}
 

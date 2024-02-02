@@ -26,7 +26,7 @@ The config file for this external provider is a simple toml used to configure th
 ```bash
 project_id = "garm-testing"
 zone = "europe-west1-d"
-network_id = "https://www.googleapis.com/compute/v1/projects/garm-testing/global/networks/garm"
+network_id = "projects/garm-testing/global/networks/garm"
 subnetwork_id = "projects/garm-testing/regions/europe-west1/subnetworks/garm"
 CredentialsFile = "/home/ubuntu/credentials.json"
 ```
@@ -34,6 +34,25 @@ CredentialsFile = "/home/ubuntu/credentials.json"
 ## Creating a pool
 
 After you [add it to garm as an external provider](https://github.com/cloudbase/garm/blob/main/doc/providers.md#the-external-provider), you need to create a pool that uses it. Assuming you named your external provider as ```gcp``` in the garm config, the following command should create a new pool:
+
+```bash
+garm-cli pool create \
+    --os-type windows \
+    --os-arch amd64 \
+    --enabled=true \
+    --flavor e2-medium \
+    --image  projects/windows-cloud/global/images/family/windows-2022\
+    --min-idle-runners 0 \
+    --repo 26ae13a1-13e9-47ec-92c9-1526084684cf \
+    --tags gcp,windows \
+    --provider-name gcp
+```
+
+This will create a new Windows runner pool for the repo with ID `26ae13a1-13e9-47ec-92c9-1526084684cf` on GCP, using the image specified by its family name `projects/windows-cloud/global/images/family/windows-2022` and instance type `e2-medium`. You can, of course, tweak the values in the above command to suit your needs.
+
+**NOTE**: If you want to use a custom image that you created, specify the image name in the following format: `projects/my_project/global/images/my-custom-image`
+
+Here is an example for a Linux pool that uses the image specified by its image name:
 
 ```bash
 garm-cli pool create \
@@ -48,7 +67,7 @@ garm-cli pool create \
     --provider-name gcp
 ```
 
-Always find a recent image to use.
+Always find a recent image to use. For example, to see available Windows server 2022 iamges, run something like `gcloud compute images list --filter windows-2022` or just search [here](https://console.cloud.google.com/compute/images).
 
 ## Tweaking the provider
 
@@ -58,24 +77,24 @@ To this end, this provider supports the following extra specs schema:
 
 ```bash
 {
-    "$schema": "http://cloudbase.it/garm-provider-aws/schemas/extra_specs#",
+    "$schema": "http://cloudbase.it/garm-provider-gcp/schemas/extra_specs#",
     "type": "object",
-    "description": "Schema defining supported extra specs for the Garm AWS Provider",
+    "description": "Schema defining supported extra specs for the Garm GCP Provider",
     "properties": {
         "disksize": {
-            "type": "integer"
+            "type": "integer",
             "description": "The size of the root disk in GB. Default is 127 GB."
-        }
+        },
         "network_id": {
-            "type": "string"
+            "type": "string",
             "description": "The name of the network attached to the instance."
-        }
+        },
         "subnet_id": {
-            "type": "string"
+            "type": "string",
             "description": "The name of the subnetwork attached to the instance."
-        }
+        },
         "nic_type": {
-            "type": "string"
+            "type": "string",
             "description": "The type of NIC attached to the instance. Default is VIRTIO_NET."
         }
     }
@@ -87,7 +106,7 @@ An example of extra specs json would look like this:
 ```bash
 {
     "disksize": 255,
-    "network_id": "https://www.googleapis.com/compute/v1/projects/garm-testing/global/networks/garm",
+    "network_id": "projects/garm-testing/global/networks/garm-2",
     "subnet_id": "projects/garm-testing/regions/europe-west1/subnetworks/garm",
     "nic_type": "VIRTIO_NET"
 }
