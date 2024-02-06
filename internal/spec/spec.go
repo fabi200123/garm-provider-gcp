@@ -139,6 +139,10 @@ func (r RunnerSpec) ComposeUserData() (string, error) {
 				"sudo useradd -m " + defaults.DefaultUser + " || true",
 				// Create the runner home directory if it doesn't exist
 				"sudo mkdir -p /home/" + defaults.DefaultUser,
+				// Add user to sudoers
+				"sudo usermod -aG sudo " + defaults.DefaultUser + " || sudo usermod -aG wheel " + defaults.DefaultUser,
+				// Check curl and tar are installed
+				"sudo apt-get update && sudo apt-get install -y curl tar || sudo yum install -y curl tar",
 			}
 			lines = append(lines[:1], append(additionalCommands, lines[1:]...)...)
 		}

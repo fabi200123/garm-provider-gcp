@@ -22,6 +22,7 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	"github.com/cloudbase/garm-provider-common/params"
 	"github.com/cloudbase/garm-provider-gcp/config"
 	"github.com/cloudbase/garm-provider-gcp/internal/spec"
 	"github.com/cloudbase/garm-provider-gcp/internal/util"
@@ -112,7 +113,7 @@ func (g *GcpCli) CreateInstance(ctx context.Context, spec *spec.RunnerSpec) (*co
 		Metadata: &computepb.Metadata{
 			Items: []*computepb.Items{
 				{
-					Key:   proto.String(selectStartupScript(string(spec.BootstrapParams.OSType))),
+					Key:   proto.String(selectStartupScript(spec.BootstrapParams.OSType)),
 					Value: proto.String(udata),
 				},
 			},
@@ -235,11 +236,11 @@ func (g *GcpCli) StartInstance(ctx context.Context, instance string) error {
 	return nil
 }
 
-func selectStartupScript(osType string) string {
+func selectStartupScript(osType params.OSType) string {
 	switch osType {
-	case "windows":
+	case params.Windows:
 		return windowsStartupScript
-	case "linux":
+	case params.Linux:
 		return linuxStartupScript
 	default:
 		return ""

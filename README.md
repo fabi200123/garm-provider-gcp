@@ -1,6 +1,6 @@
 # Garm External Provider For GCP
 
-The GCP external provider allows [garm](https://github.com/cloudbase/garm) to create Linux and Windows runners on top of AWS virtual machines.
+The GCP external provider allows [garm](https://github.com/cloudbase/garm) to create Linux and Windows runners on top of GCP virtual machines.
 
 ## Build
 
@@ -21,14 +21,14 @@ Copy the binary on the same system where garm is running, and [point to it in th
 
 ## Configure
 
-The config file for this external provider is a simple toml used to configure the AWS credentials it needs to spin up virtual machines.
+The config file for this external provider is a simple toml used to configure the GCP credentials it needs to spin up virtual machines.
 
 ```bash
 project_id = "garm-testing"
 zone = "europe-west1-d"
 network_id = "projects/garm-testing/global/networks/garm"
 subnetwork_id = "projects/garm-testing/regions/europe-west1/subnetworks/garm"
-CredentialsFile = "/home/ubuntu/credentials.json"
+CredentialsFile = "/home/ubuntu/service-account-key.json"
 ```
 
 ## Creating a pool
@@ -41,7 +41,7 @@ garm-cli pool create \
     --os-arch amd64 \
     --enabled=true \
     --flavor e2-medium \
-    --image  projects/windows-cloud/global/images/family/windows-2022\
+    --image  projects/windows-cloud/global/images/family/windows-2022 \
     --min-idle-runners 0 \
     --repo 26ae13a1-13e9-47ec-92c9-1526084684cf \
     --tags gcp,windows \
@@ -54,20 +54,22 @@ This will create a new Windows runner pool for the repo with ID `26ae13a1-13e9-4
 
 Here is an example for a Linux pool that uses the image specified by its image name:
 
+**NOTE**: The provider supports only **UBUNTU** and **DEBIAN** images for Linux pools at the moment.
+
 ```bash
 garm-cli pool create \
     --os-type linux \
     --os-arch amd64 \
     --enabled=true \
     --flavor e2-medium \
-    --image  projects/debian-cloud/global/images/debian-11-bullseye-v20240110\
+    --image  projects/debian-cloud/global/images/debian-11-bullseye-v20240110 \
     --min-idle-runners 0 \
     --repo eb3f78b6-d667-4717-97c4-7aa1f3852138 \
     --tags gcp,linux \
     --provider-name gcp
 ```
 
-Always find a recent image to use. For example, to see available Windows server 2022 iamges, run something like `gcloud compute images list --filter windows-2022` or just search [here](https://console.cloud.google.com/compute/images).
+Always find a recent image to use. For example, to see available Windows server 2022 images, run something like `gcloud compute images list --filter windows-2022` or just search [here](https://console.cloud.google.com/compute/images).
 
 ## Tweaking the provider
 

@@ -45,14 +45,10 @@ func GcpInstanceToParamsInstance(gcpInstance *computepb.Instance) (params.Provid
 	}
 
 	switch gcpInstance.GetStatus() {
-	case "RUNNING":
+	case "RUNNING", "STAGING", "PROVISIONING":
 		details.Status = params.InstanceRunning
 	case "STOPPING", "TERMINATED", "SUSPENDED":
 		details.Status = params.InstanceStopped
-	case "PROVISIONING":
-		details.Status = params.InstancePendingCreate
-	case "STAGING":
-		details.Status = params.InstanceCreating
 	default:
 		details.Status = params.InstanceStatusUnknown
 	}
